@@ -18,9 +18,14 @@ package com.linkedin.pinot.common.data;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.linkedin.pinot.common.Utils;
 import com.linkedin.pinot.common.utils.EqualityUtils;
+import com.linkedin.pinot.common.utils.primitive.Bytes;
+import java.nio.charset.Charset;
 import javax.annotation.Nonnull;
 import org.apache.avro.Schema.Type;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 
 
 /**
@@ -35,6 +40,8 @@ import org.apache.avro.Schema.Type;
  */
 @SuppressWarnings("unused")
 public abstract class FieldSpec {
+  private static final Charset UTF_8 = Charset.forName("UTF-8");
+
   private static final Integer DEFAULT_DIMENSION_NULL_VALUE_OF_INT = Integer.MIN_VALUE;
   private static final Long DEFAULT_DIMENSION_NULL_VALUE_OF_LONG = Long.MIN_VALUE;
   private static final Float DEFAULT_DIMENSION_NULL_VALUE_OF_FLOAT = Float.NEGATIVE_INFINITY;
@@ -46,6 +53,7 @@ public abstract class FieldSpec {
   private static final Float DEFAULT_METRIC_NULL_VALUE_OF_FLOAT = 0.0F;
   private static final Double DEFAULT_METRIC_NULL_VALUE_OF_DOUBLE = 0.0D;
   private static final String DEFAULT_METRIC_NULL_VALUE_OF_STRING = "null";
+  private static final Bytes DEFAULT_DIMENSION_NULL_VALUE_OF_BYTES = new Bytes(new byte[0]);
 
   protected String _name;
   protected DataType _dataType;
@@ -137,6 +145,12 @@ public abstract class FieldSpec {
           return Double.valueOf(stringDefaultNullValue);
         case STRING:
           return stringDefaultNullValue;
+        case BYTES:
+          try {
+            return new Bytes(Hex.decodeHex(stringDefaultNullValue.toCharArray()));
+          } catch (DecoderException e) {
+            Utils.rethrowException(e); // Re-throw to avoid handling exceptions in all callers.
+          }
         default:
           throw new UnsupportedOperationException("Unsupported data type: " + dataType);
       }
@@ -154,6 +168,8 @@ public abstract class FieldSpec {
               return DEFAULT_METRIC_NULL_VALUE_OF_DOUBLE;
             case STRING:
               return DEFAULT_METRIC_NULL_VALUE_OF_STRING;
+            case BYTES:
+              return DEFAULT_DIMENSION_NULL_VALUE_OF_BYTES;
             default:
               throw new UnsupportedOperationException(
                   "Unknown default null value for metric field of data type: " + dataType);
@@ -172,6 +188,8 @@ public abstract class FieldSpec {
               return DEFAULT_DIMENSION_NULL_VALUE_OF_DOUBLE;
             case STRING:
               return DEFAULT_DIMENSION_NULL_VALUE_OF_STRING;
+            case BYTES:
+              return DEFAULT_DIMENSION_NULL_VALUE_OF_BYTES;
             default:
               throw new UnsupportedOperationException(
                   "Unknown default null value for dimension/time field of data type: " + dataType);
