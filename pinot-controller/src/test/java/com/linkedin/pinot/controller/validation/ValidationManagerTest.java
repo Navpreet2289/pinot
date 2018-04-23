@@ -34,6 +34,8 @@ import com.linkedin.pinot.controller.utils.SegmentMetadataMockUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.core.Response;
 import org.apache.helix.HelixAdmin;
 import org.apache.helix.HelixManager;
 import org.apache.helix.manager.zk.ZkClient;
@@ -112,7 +114,12 @@ public class ValidationManagerTest {
     Assert.assertTrue(idealState.getInstanceSet(partitionName)
         .equals(_pinotHelixResourceManager.getAllInstancesForBrokerTenant(
             ControllerTenantNameBuilder.DEFAULT_TENANT_NAME)));
-    _pinotHelixResourceManager.rebuildBrokerResourceFromHelixTags(partitionName);
+    try {
+      _pinotHelixResourceManager.rebuildBrokerResourceFromHelixTags(partitionName);
+    } catch (BadRequestException e) {
+      Assert.assertEquals(e.getResponse().getStatus(), Response.Status.BAD_REQUEST.getStatusCode());
+      Assert.assertTrue(e.getMessage().contains("Broker resource is not rebuilt because ideal state is the same for table"));
+    }
 
     // Add another table that needs to be rebuilt
     TableConfig offlineTableConfigTwo =

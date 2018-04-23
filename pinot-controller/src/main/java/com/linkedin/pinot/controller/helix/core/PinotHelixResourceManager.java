@@ -77,6 +77,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.InternalServerErrorException;
+import javax.ws.rs.NotFoundException;
 import org.apache.commons.configuration.Configuration;
 import org.apache.helix.AccessOption;
 import org.apache.helix.ClusterMessagingService;
@@ -550,20 +553,19 @@ public class PinotHelixResourceManager {
   public PinotResourceManagerResponse rebuildBrokerResourceFromHelixTags(@Nonnull final String tableNameWithType) {
     // Get the broker tag for this table
     String brokerTag;
-    TenantConfig tenantConfig;
+    TableConfig tableConfig;
 
     try {
-      TableConfig tableConfig = ZKMetadataProvider.getTableConfig(_propertyStore, tableNameWithType);
-      if (tableConfig == null) {
-        return new PinotResourceManagerResponse("Table " + tableNameWithType + " does not exist", false);
-      }
-      tenantConfig = tableConfig.getTenantConfig();
+      tableConfig = ZKMetadataProvider.getTableConfig(_propertyStore, tableNameWithType);
     } catch (Exception e) {
-      LOGGER.warn("Caught exception while getting tenant config for table {}", tableNameWithType, e);
-      return new PinotResourceManagerResponse(
-          "Failed to fetch broker tag for table " + tableNameWithType + " due to exception: " + e.getMessage(), false);
+      LOGGER.warn("Caught exception while getting table config for table {}", tableNameWithType, e);
+      throw new InvalidTableConfigException("Failed to fetch broker tag for table " + tableNameWithType + " due to exception: " + e.getMessage());
     }
-
+    if (tableConfig == null) {
+      LOGGER.warn("Table " + tableNameWithType + " does not exist");
+      throw new InvalidTableConfigException("Invalid table configuration for table " + tableNameWithType + ". Table does not exist");
+    }
+    TenantConfig tenantConfig = tableConfig.getTenantConfig();
     brokerTag = tenantConfig.getBroker();
 
     // Look for all instances tagged with this broker tag
@@ -577,8 +579,7 @@ public class PinotHelixResourceManager {
     Set<String> idealStateBrokerInstances = brokerIdealState.getInstanceSet(tableNameWithType);
 
     if (idealStateBrokerInstances.equals(brokerInstances)) {
-      return new PinotResourceManagerResponse(
-          "Broker resource is not rebuilt because ideal state is the same for table {} " + tableNameWithType, false);
+      return new PinotResourceManagerResponse("Broker resource is not rebuilt because ideal state is the same for table: " + tableNameWithType, true);
     }
 
     // Reset ideal state with the instance list
@@ -606,9 +607,7 @@ public class PinotHelixResourceManager {
     } catch (Exception e) {
       LOGGER.warn("Caught exception while rebuilding broker resource from Helix tags for table {}", e,
           tableNameWithType);
-      return new PinotResourceManagerResponse(
-          "Failed to rebuild brokerResource for table " + tableNameWithType + " due to exception: " + e.getMessage(),
-          false);
+      throw new InvalidTableConfigException("Failed to rebuild brokerResource for table " + tableNameWithType + " due to exception: " + e.getMessage());
     }
   }
 

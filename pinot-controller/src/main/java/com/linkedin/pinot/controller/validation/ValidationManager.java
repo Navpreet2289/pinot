@@ -45,6 +45,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import javax.ws.rs.WebApplicationException;
 import org.apache.helix.ZNRecord;
 import org.apache.helix.model.IdealState;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
@@ -136,7 +137,12 @@ public class ValidationManager {
     ZkHelixPropertyStore<ZNRecord> propertyStore = _pinotHelixResourceManager.getPropertyStore();
 
     for (String tableNameWithType : allTableNames) {
-      _pinotHelixResourceManager.rebuildBrokerResourceFromHelixTags(tableNameWithType);
+      try {
+        _pinotHelixResourceManager.rebuildBrokerResourceFromHelixTags(tableNameWithType);
+      } catch (PinotHelixResourceManager.InvalidTableConfigException e) {
+        LOGGER.warn("Exception when rebuilding BrokerResource From HelixTags for table: {}. Exception: {}", tableNameWithType, e.getMessage());
+      }
+
       LOGGER.info("Starting to validate table: {}", tableNameWithType);
 
       // For each table, fetch the metadata for all its segments
